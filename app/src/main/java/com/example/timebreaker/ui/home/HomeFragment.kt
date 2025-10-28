@@ -1,13 +1,15 @@
 package com.example.timebreaker.ui.home
 
+import android.os.Build
 import androidx.fragment.app.viewModels
 import com.example.timebreaker.databinding.FragmentHomeBinding
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.fragment.app.Fragment
+import com.example.timebreaker.ui.data.WorkTimerService
 
 class HomeFragment : Fragment() {
 
@@ -23,6 +25,7 @@ class HomeFragment : Fragment() {
         return binding.root
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -38,33 +41,28 @@ class HomeFragment : Fragment() {
         viewModel.breakTime.observe(viewLifecycleOwner) {
             binding.tvBreak.text = it
         }
-        viewModel.overtime.observe(viewLifecycleOwner) {
+        viewModel.leavingTime.observe(viewLifecycleOwner) {
             binding.tvOvertime.text = it
         }
 
         viewModel.isClockedIn.observe(viewLifecycleOwner) { isClockedIn ->
-            if (isClockedIn) {
-                binding.btnClockIn.visibility = View.GONE
-                binding.btnClockOut.visibility = View.VISIBLE
-            } else {
-                binding.btnClockIn.visibility = View.VISIBLE
-                binding.btnClockOut.visibility = View.GONE
-            }
+            binding.btnClockIn.visibility = if (isClockedIn) View.GONE else View.VISIBLE
+            binding.btnClockOut.visibility = if (isClockedIn) View.VISIBLE else View.GONE
         }
 
         binding.btnClockIn.setOnClickListener {
             viewModel.clockIn()
-            Toast.makeText(requireContext(), "Clocked in!", Toast.LENGTH_SHORT).show()
+            WorkTimerService.startService(requireContext())
         }
 
         binding.btnClockOut.setOnClickListener {
             viewModel.clockOut()
-            Toast.makeText(requireContext(), "Clocked out!", Toast.LENGTH_SHORT).show()
+            WorkTimerService.startService(requireContext())
         }
 
         binding.btnEndDay.setOnClickListener {
             viewModel.endDay()
-            Toast.makeText(requireContext(), "Day ended and reset!", Toast.LENGTH_SHORT).show()
+            WorkTimerService.stopService(requireContext())
         }
     }
 
