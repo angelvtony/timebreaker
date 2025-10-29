@@ -1,15 +1,18 @@
 package com.example.timebreaker.ui.home
 
-
 import android.annotation.SuppressLint
+import android.app.Application
 import android.util.Log
 import androidx.lifecycle.*
+import com.example.timebreaker.ui.data.DatabaseProvider
+import com.example.timebreaker.ui.data.entities.WorkSession
+import com.example.timebreaker.ui.data.repositories.WorkRepository
 import kotlinx.coroutines.*
 import java.lang.Long.max
 import java.text.SimpleDateFormat
 import java.util.*
 
-class HomeViewModel : ViewModel() {
+class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _currentTime = MutableLiveData<String>()
     val currentTime: LiveData<String> = _currentTime
@@ -41,10 +44,54 @@ class HomeViewModel : ViewModel() {
     private var breakStartTime: Long = 0L
     private var clockInTime: Long = 0L
 
+    private val dao = DatabaseProvider.getDatabase(application).workSessionDao()
+    private val repository = WorkRepository(dao)
+    private val sdfDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+
+
     private var totalShiftMillis = 8 * 60 * 60 * 1000L
 
     init {
         startClock()
+        loadTodaySession()
+    }
+
+    private fun loadTodaySession() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val today = sdfDate.format(Date())
+            val session = repository.getSessionByDate(today)
+            session?.let {
+                withContext(Dispatchers.Main) {
+                    _isClockedIn.value = it.clockOutTime == null
+                    _timeWorked.value = formatDuration(it.totalWorked)
+                    _breakTime.value = formatDuration(it.totalBreak)
+                    _timeLeft.value = formatDuration(
+                        max(it.shiftDuration - it.totalWorked, 0L)
+                    )
+                    _leavingTime.value = it.leavingTime ?: "--:-- --"
+                    clockInTime = timeToMillis(it.clockInTime)
+                    totalWorkedMillis = it.totalWorked
+                    totalBreakMillis = it.totalBreak
+                }
+            }
+            if (_isClockedIn.value == true) {
+                startWorkTime = System.currentTimeMillis() - totalWorkedMillis
+                clockIn()
+            }
+        }
+    }
+
+    private fun timeToMillis(time: String?): Long {
+        if (time.isNullOrEmpty()) return 0L
+        return try {
+            val parsed = shortTimeFormat.parse(time)
+            val calendar = Calendar.getInstance()
+            val now = calendar.time
+            val diff = parsed!!.time - shortTimeFormat.parse(shortTimeFormat.format(now))!!.time
+            now.time + diff
+        } catch (e: Exception) {
+            0L
+        }
     }
 
     private fun startClock() {
@@ -76,8 +123,20 @@ class HomeViewModel : ViewModel() {
                     _timeLeft.value = formatDuration(max(totalShiftMillis - workedMillis, 0))
                     _isClockedIn.value = false
                     _leavingTime.value = clockOut
-                } else {
-                    _timeWorked.value = "--:-- --"
+
+                    val date = sdfDate.format(Date())
+                    viewModelScope.launch {
+                        val session = WorkSession(
+                            date = date,
+                            clockInTime = clockIn,
+                            clockOutTime = clockOut,
+                            totalWorked = workedMillis,
+                            totalBreak = totalBreakMillis,
+                            shiftDuration = totalShiftMillis,
+                            leavingTime = clockOut
+                        )
+                        repository.insert(session)
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -93,6 +152,20 @@ class HomeViewModel : ViewModel() {
         if (clockInTime == 0L) {
             clockInTime = System.currentTimeMillis()
             updateLeavingTime()
+
+            val date = sdfDate.format(Date(clockInTime))
+            viewModelScope.launch {
+                val session = WorkSession(
+                    date = date,
+                    clockInTime = shortTimeFormat.format(Date(clockInTime)),
+                    clockOutTime = null,
+                    totalWorked = 0L,
+                    totalBreak = 0L,
+                    shiftDuration = totalShiftMillis,
+                    leavingTime = _leavingTime.value
+                )
+                repository.insert(session)
+            }
         }
 
         breakJob?.cancel()
@@ -111,11 +184,8 @@ class HomeViewModel : ViewModel() {
                 _timeWorked.postValue(formatDuration(workedTotal))
 
                 val remaining = totalShiftMillis - workedTotal
-                if (remaining >= 0) {
-                    _timeLeft.postValue(formatDuration(remaining))
-                } else {
-                    _timeLeft.postValue("00:00:00")
-                }
+                if (remaining >= 0) _timeLeft.postValue(formatDuration(remaining))
+                else _timeLeft.postValue("00:00:00")
 
                 delay(1000)
             }
@@ -127,7 +197,26 @@ class HomeViewModel : ViewModel() {
         _isClockedIn.value = false
 
         workJob?.cancel()
-        totalWorkedMillis += System.currentTimeMillis() - startWorkTime
+        val endTime = System.currentTimeMillis()
+        totalWorkedMillis += endTime - startWorkTime
+
+        val date = sdfDate.format(Date(clockInTime))
+        val clockInStr = shortTimeFormat.format(Date(clockInTime))
+        val clockOutStr = shortTimeFormat.format(Date(endTime))
+        val leavingStr = shortTimeFormat.format(Date(endTime))
+
+        viewModelScope.launch {
+            val session = WorkSession(
+                date = date,
+                clockInTime = clockInStr,
+                clockOutTime = clockOutStr,
+                totalWorked = totalWorkedMillis,
+                totalBreak = totalBreakMillis,
+                shiftDuration = totalShiftMillis,
+                leavingTime = leavingStr
+            )
+            repository.insert(session)
+        }
 
         breakStartTime = System.currentTimeMillis()
         breakJob = viewModelScope.launch(Dispatchers.Default) {

@@ -22,7 +22,7 @@
         android:text="Select time"
         android:textColor="@android:color/white"
         android:background="@drawable/bg_time_field"
-        android:drawableEnd="@drawable/ic_settings"
+        android:drawableEnd="@drawable/calendar_empty"
         android:gravity="center_vertical" />
 
     <TextView
@@ -42,7 +42,7 @@
         android:text="Select time"
         android:textColor="@android:color/white"
         android:background="@drawable/bg_time_field"
-        android:drawableEnd="@drawable/ic_settings"
+        android:drawableEnd="@drawable/calendar_empty"
         android:gravity="center_vertical" />
 </LinearLayout>
 

@@ -9,7 +9,7 @@
 
     <item
         android:id="@+id/action_manual_clock_entry"
-        android:icon="@drawable/ic_settings"
+        android:icon="@drawable/calendar_empty"
         android:title="Manual Clock In/Out"
         app:showAsAction="always" />
 </menu>
