@@ -1,5 +1,6 @@
 package com.example.timebreaker.ui.data
 
+import android.annotation.SuppressLint
 import android.os.Build
 import androidx.annotation.RequiresApi
 import com.example.timebreaker.ui.MainActivity
@@ -76,7 +77,7 @@ class WorkTimerService : Service() {
             .setContentTitle(title)
             .setContentText("Time Worked: $time")
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setOngoing(true) // can't be dismissed
+            .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
             .build()
@@ -93,6 +94,7 @@ class WorkTimerService : Service() {
         manager.createNotificationChannel(channel)
     }
 
+    @SuppressLint("DefaultLocale")
     private fun formatDuration(millis: Long): String {
         val totalSeconds = millis / 1000
         val hours = totalSeconds / 3600

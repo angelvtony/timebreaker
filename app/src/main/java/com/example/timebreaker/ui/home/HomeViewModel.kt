@@ -2,8 +2,10 @@ package com.example.timebreaker.ui.home
 
 
 import android.annotation.SuppressLint
+import android.util.Log
 import androidx.lifecycle.*
 import kotlinx.coroutines.*
+import java.lang.Long.max
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -39,7 +41,7 @@ class HomeViewModel : ViewModel() {
     private var breakStartTime: Long = 0L
     private var clockInTime: Long = 0L
 
-    private val totalShiftMillis = 8 * 60 * 60 * 1000L
+    private var totalShiftMillis = 8 * 60 * 60 * 1000L
 
     init {
         startClock()
@@ -53,6 +55,36 @@ class HomeViewModel : ViewModel() {
             }
         }
     }
+
+    fun setManualShiftTime(hours: Int, minutes: Int) {
+        totalShiftMillis = (hours * 60 * 60 + minutes * 60) * 1000L
+        _timeLeft.value = formatDuration(totalShiftMillis)
+        updateLeavingTime()
+    }
+
+    @SuppressLint("SimpleDateFormat")
+    fun setManualClockTimes(clockIn: String, clockOut: String) {
+        try {
+            val sdf = SimpleDateFormat("hh:mm a", Locale.getDefault())
+            val inTime = sdf.parse(clockIn)
+            val outTime = sdf.parse(clockOut)
+
+            if (inTime != null && outTime != null) {
+                val workedMillis = outTime.time - inTime.time
+                if (workedMillis > 0) {
+                    _timeWorked.value = formatDuration(workedMillis)
+                    _timeLeft.value = formatDuration(max(totalShiftMillis - workedMillis, 0))
+                    _isClockedIn.value = false
+                    _leavingTime.value = clockOut
+                } else {
+                    _timeWorked.value = "--:-- --"
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("HomeViewModel", "Invalid manual clock input: ${e.message}")
+        }
+    }
+
 
     fun clockIn() {
         if (_isClockedIn.value == true) return
