@@ -159,7 +159,7 @@ class HomeFragment : Fragment() {
             .setTitle("Manual Clock Entry")
             .setView(dialogView)
             .setPositiveButton("Save") { _, _ ->
-                if (clockInTime != null && clockOutTime != null) viewModel.setManualClockTimes(clockInTime!!, clockOutTime!!)
+                if (clockInTime != null && clockOutTime != null) viewModel.setManualClockTimes(clockInTime, clockOutTime)
             }
             .setNegativeButton("Cancel", null)
             .show()
