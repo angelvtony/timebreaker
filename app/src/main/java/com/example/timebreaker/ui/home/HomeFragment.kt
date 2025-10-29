@@ -64,6 +64,9 @@ class HomeFragment : Fragment() {
             binding.tvOvertime.text = it
         }
 
+        viewModel.allSessions.observe(viewLifecycleOwner) { sessions ->
+        }
+
         viewModel.isClockedIn.observe(viewLifecycleOwner) { isClockedIn ->
             binding.btnClockIn.visibility = if (isClockedIn) View.GONE else View.VISIBLE
             binding.btnClockOut.visibility = if (isClockedIn) View.VISIBLE else View.GONE

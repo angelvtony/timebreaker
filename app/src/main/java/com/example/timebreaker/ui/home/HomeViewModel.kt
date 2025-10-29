@@ -47,6 +47,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val dao = DatabaseProvider.getDatabase(application).workSessionDao()
     private val repository = WorkRepository(dao)
     private val sdfDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val allSessions: LiveData<List<WorkSession>> = repository.getAllSessions()
 
 
     private var totalShiftMillis = 8 * 60 * 60 * 1000L
