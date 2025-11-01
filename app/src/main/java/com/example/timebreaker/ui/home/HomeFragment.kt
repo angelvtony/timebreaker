@@ -72,14 +72,13 @@ class HomeFragment : Fragment() {
             binding.btnClockOut.visibility = if (isClockedIn) View.VISIBLE else View.GONE
         }
 
+
         binding.btnClockIn.setOnClickListener {
-            viewModel.clockIn()
-            WorkTimerService.startService(requireContext())
+            viewModel.clockIn() // This method already starts the WorkTimerService
         }
 
         binding.btnClockOut.setOnClickListener {
-            viewModel.clockOut()
-            WorkTimerService.startService(requireContext())
+            viewModel.clockOut() // This method already stops WorkTimerService and starts BreakTimerService
         }
 
         binding.btnEndDay.setOnClickListener {

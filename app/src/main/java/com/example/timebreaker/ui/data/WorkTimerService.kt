@@ -15,12 +15,20 @@ import kotlinx.coroutines.*
 import java.lang.Long.max
 import java.text.SimpleDateFormat
 import java.util.*
+import android.app.*
+import kotlinx.coroutines.*
+import java.util.*
 
 class WorkTimerService : Service() {
 
     companion object {
-        fun startService(context: Context) {
-            val intent = Intent(context, WorkTimerService::class.java)
+        const val ACTION_WORK_TIMER_UPDATE = "WORK_TIMER_UPDATE"
+
+        fun startService(context: Context, workStartTime: Long, totalWorkedAtStart: Long) {
+            val intent = Intent(context, WorkTimerService::class.java).apply {
+                putExtra("WORK_START_TIME", workStartTime)
+                putExtra("TOTAL_WORKED_AT_START", totalWorkedAtStart)
+            }
             ContextCompat.startForegroundService(context, intent)
         }
 
@@ -32,41 +40,73 @@ class WorkTimerService : Service() {
 
     private var timerJob: Job? = null
     private val channelId = "work_timer_channel"
-    private val notificationId = 1
+    private val notificationId = 1 // Must be different from BreakTimerService
+
+    // We need these to calculate leaving time
+    private var clockInTime: Long = 0L
+    private var totalBreak: Long = 0L
+    private var shiftDuration: Long = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(notificationId, buildNotification("Timer running...","00:00:00"))
+        // Start with a default notification
+        startForeground(notificationId, buildNotification("00:00:00"))
 
-        startTimer()
+        // Load values that don't change during the session
+        clockInTime = PrefsHelper.getClockIn(this)
+        totalBreak = PrefsHelper.getTotalBreak(this)
+        shiftDuration = PrefsHelper.getShiftDuration(this)
     }
 
-    private fun startTimer() {
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val workStartTime = intent?.getLongExtra("WORK_START_TIME", 0L) ?: 0L
+        val totalWorkedAtStart = intent?.getLongExtra("TOTAL_WORKED_AT_START", 0L) ?: 0L
+
+        // (Re)load these in case they changed (e.g., user set manual shift)
+        clockInTime = PrefsHelper.getClockIn(this)
+        totalBreak = PrefsHelper.getTotalBreak(this)
+        shiftDuration = PrefsHelper.getShiftDuration(this)
+
+        startTimer(workStartTime, totalWorkedAtStart)
+
+        // Ensures the service restarts if killed
+        return START_STICKY
+    }
+
+    private fun startTimer(workStartTime: Long, totalWorkedAtStart: Long) {
+        if (workStartTime == 0L) {
+            stopSelf() // Invalid start, stop
+            return
+        }
+
         timerJob?.cancel()
-        val clockIn = PrefsHelper.getClockIn(this)
-        val totalWorked = PrefsHelper.getTotalWorked(this)
-        val totalBreak = PrefsHelper.getTotalBreak(this)
-        val isClockedIn = PrefsHelper.getIsClockedIn(this)
-        val shiftDuration = PrefsHelper.getShiftDuration(this)
-
-        if (!isClockedIn) return
-
-        val startTime = System.currentTimeMillis() - totalWorked
-
         timerJob = CoroutineScope(Dispatchers.Default).launch {
             while (isActive) {
-                val workedNow = System.currentTimeMillis() - startTime
-                val total = totalWorked + workedNow
-                PrefsHelper.saveTotalWorked(applicationContext, total)
-                val remaining = max(shiftDuration - total, 0L)
-                val intent = Intent("WORK_TIMER_UPDATE").apply {
-                    putExtra("totalWorked", total)
-                    putExtra("timeLeft", remaining)
-                }
-                sendBroadcast(intent)
+                // 1. Calculate new values
+                val workedNow = System.currentTimeMillis() - workStartTime
+                val totalWorked = totalWorkedAtStart + workedNow
+                val timeLeft = max(shiftDuration - totalWorked, 0L)
+                val leavingTime = clockInTime + shiftDuration + totalBreak
+
+                // 2. Save the new total
+                PrefsHelper.saveTotalWorked(applicationContext, totalWorked)
+
+                // 3. Broadcast all data to the UI
+                Intent(ACTION_WORK_TIMER_UPDATE).apply {
+                    putExtra("totalWorked", totalWorked)
+                    putExtra("timeLeft", timeLeft)
+                    putExtra("leavingTime", leavingTime)
+                    // Add this line to make the broadcast explicit
+                    setPackage(applicationContext.packageName)
+                }.also { sendBroadcast(it) }
+
+                // 4. Update the foreground notification
+                val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                notificationManager.notify(notificationId, buildNotification(formatDuration(totalWorked)))
+
                 delay(1000)
             }
         }
@@ -77,22 +117,34 @@ class WorkTimerService : Service() {
         timerJob?.cancel()
     }
 
-    private fun buildNotification(title: String, time: String): Notification {
-        val notificationIntent = Intent(this, MainActivity::class.java)
+    private fun buildNotification(time: String): Notification {
+        val notificationIntent = Intent(this, MainActivity::class.java) // Assumes MainActivity
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE
+            this, 0, notificationIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         return NotificationCompat.Builder(this, channelId)
-            .setContentTitle(title)
+            .setContentTitle("Clocked In")
             .setContentText("Time Worked: $time")
-            .setSmallIcon(R.drawable.ic_settings)
+            .setSmallIcon(R.drawable.ic_settings) // Replace with your app icon
             .setContentIntent(pendingIntent)
+            .setOnlyAlertOnce(true) // Prevents sound/vibration every second
             .build()
+    }
+
+    // Utility function
+    private fun formatDuration(millis: Long): String {
+        val totalSeconds = millis / 1000
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        val seconds = totalSeconds % 60
+        return String.format("%02d:%02d:%02d", hours, minutes, seconds)
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(channelId, "Work Timer", NotificationManager.IMPORTANCE_LOW)
+            channel.description = "Notification for active work timer"
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }

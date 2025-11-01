@@ -25,11 +25,13 @@ import kotlinx.coroutines.launch
 class BreakTimerService : Service() {
 
     companion object {
-        private const val CHANNEL_ID = "break_timer_channel"
-        private const val NOTIFICATION_ID = 2
+        const val ACTION_BREAK_TIMER_UPDATE = "BREAK_TIMER_UPDATE"
 
-        fun startService(context: Context) {
-            val intent = Intent(context, BreakTimerService::class.java)
+        fun startService(context: Context, breakStartTime: Long, totalBreakAtStart: Long) {
+            val intent = Intent(context, BreakTimerService::class.java).apply {
+                putExtra("BREAK_START_TIME", breakStartTime)
+                putExtra("TOTAL_BREAK_AT_START", totalBreakAtStart)
+            }
             ContextCompat.startForegroundService(context, intent)
         }
 
@@ -39,75 +41,97 @@ class BreakTimerService : Service() {
         }
     }
 
-    private var breakJob: Job? = null
+    private var timerJob: Job? = null
+    private val channelId = "break_timer_channel"
+    private val notificationId = 2 // Must be different from WorkTimerService
+
+    // We need these to calculate leaving time
+    private var clockInTime: Long = 0L
+    private var shiftDuration: Long = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(
-            NOTIFICATION_ID,
-            buildNotification("On Break", "00:00:00")
-        )
-        startBreakTimer()
+        // Start with a default notification
+        startForeground(notificationId, buildNotification("00:00:00"))
+
+        // Load values that don't change during the session
+        clockInTime = PrefsHelper.getClockIn(this)
+        shiftDuration = PrefsHelper.getShiftDuration(this)
     }
 
-    private fun startBreakTimer() {
-        breakJob?.cancel()
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val breakStartTime = intent?.getLongExtra("BREAK_START_TIME", 0L) ?: 0L
+        val totalBreakAtStart = intent?.getLongExtra("TOTAL_BREAK_AT_START", 0L) ?: 0L
 
-        val totalBreak = PrefsHelper.getTotalBreak(this)
-        val breakStart = PrefsHelper.getBreakStart(this)
-        if (breakStart == 0L) return
+        // Re-load in case they changed
+        clockInTime = PrefsHelper.getClockIn(this)
+        shiftDuration = PrefsHelper.getShiftDuration(this)
 
-        val startTime = System.currentTimeMillis() - totalBreak
+        startTimer(breakStartTime, totalBreakAtStart)
 
-        breakJob = CoroutineScope(Dispatchers.Default).launch {
+        // Ensures the service restarts if killed
+        return START_STICKY
+    }
+
+    private fun startTimer(breakStartTime: Long, totalBreakAtStart: Long) {
+        if (breakStartTime == 0L) {
+            stopSelf() // Invalid start, stop
+            return
+        }
+
+        timerJob?.cancel()
+        timerJob = CoroutineScope(Dispatchers.Default).launch {
             while (isActive) {
-                val total = System.currentTimeMillis() - breakStart + totalBreak
-                PrefsHelper.saveTotalBreak(applicationContext, total)
+                // 1. Calculate new values
+                val breakNow = System.currentTimeMillis() - breakStartTime
+                val totalBreak = totalBreakAtStart + breakNow
+                val leavingTime = clockInTime + shiftDuration + totalBreak
 
-                val formatted = formatDuration(total)
+                // 2. Save the new total
+                PrefsHelper.saveTotalBreak(applicationContext, totalBreak)
 
-                // Update notification every few seconds
-                if ((total / 1000) % 5 == 0L) {
-                    val manager = getSystemService(NotificationManager::class.java)
-                    manager.notify(
-                        NOTIFICATION_ID,
-                        buildNotification("On Break", formatted)
-                    )
-                }
+                // 3. Broadcast all data to the UI
+                Intent(ACTION_BREAK_TIMER_UPDATE).apply {
+                    putExtra("totalBreak", totalBreak)
+                    putExtra("leavingTime", leavingTime)
+                    // --- THIS IS THE FIX ---
+                    setPackage(applicationContext.packageName)
+                    // -----------------------
+                }.also { sendBroadcast(it) }
+
+                // 4. Update the foreground notification
+                val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                notificationManager.notify(notificationId, buildNotification(formatDuration(totalBreak)))
 
                 delay(1000)
             }
         }
     }
 
-    private fun buildNotification(title: String, time: String): Notification {
-        val notificationIntent = Intent(this, MainActivity::class.java)
+    override fun onDestroy() {
+        super.onDestroy()
+        timerJob?.cancel()
+    }
+
+    private fun buildNotification(time: String): Notification {
+        val notificationIntent = Intent(this, MainActivity::class.java) // Assumes MainActivity
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE
+            this, 0, notificationIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(title)
+        return NotificationCompat.Builder(this, channelId)
+            .setContentTitle("On Break")
             .setContentText("Break Time: $time")
-            .setSmallIcon(R.drawable.ic_settings)
+            .setSmallIcon(R.drawable.ic_settings) // Replace with your app icon
             .setContentIntent(pendingIntent)
+            .setOnlyAlertOnce(true) // Prevents sound/vibration every second
             .build()
     }
 
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Break Timer",
-                NotificationManager.IMPORTANCE_LOW
-            )
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
-        }
-    }
-
+    // Utility function
     private fun formatDuration(millis: Long): String {
         val totalSeconds = millis / 1000
         val hours = totalSeconds / 3600
@@ -116,8 +140,12 @@ class BreakTimerService : Service() {
         return String.format("%02d:%02d:%02d", hours, minutes, seconds)
     }
 
-    override fun onDestroy() {
-        breakJob?.cancel()
-        super.onDestroy()
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(channelId, "Break Timer", NotificationManager.IMPORTANCE_LOW)
+            channel.description = "Notification for active break timer"
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
     }
 }
