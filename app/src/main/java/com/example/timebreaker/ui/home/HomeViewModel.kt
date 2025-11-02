@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
 import java.util.*
 
 
-@RequiresApi(Build.VERSION_CODES.O) // Add this if not present
+@RequiresApi(Build.VERSION_CODES.O)
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _currentTime = MutableLiveData<String>()
@@ -58,19 +58,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val shortTimeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
     private val sdfDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
-    // --- State variables ---
     private var clockInTime: Long = 0L
-    private var startWorkTime: Long = 0L // The System.currentTimeMillis() when work *started*
-    private var breakStartTime: Long = 0L // The System.currentTimeMillis() when break *started*
-    private var totalWorkedMillis: Long = 0L // The total duration worked
-    private var totalBreakMillis: Long = 0L // The total duration on break
-    private var totalShiftMillis: Long = 8 * 3600 * 1000L // default 8 hours
+    private var startWorkTime: Long = 0L
+    private var breakStartTime: Long = 0L
+    private var totalWorkedMillis: Long = 0L
+    private var totalBreakMillis: Long = 0L
+    private var totalShiftMillis: Long = 8 * 3600 * 1000L
 
     private val dao = DatabaseProvider.getDatabase(application).workSessionDao()
     private val repository = WorkRepository(dao)
     val allSessions: LiveData<List<WorkSession>> = repository.getAllSessions()
 
-    // --- BroadcastReceivers ---
 
     private val workTimerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -79,7 +77,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 val timeLeft = intent.getLongExtra("timeLeft", 0L)
                 val leavingTime = intent.getLongExtra("leavingTime", 0L)
 
-                totalWorkedMillis = totalWorked // Update local value
+                totalWorkedMillis = totalWorked
 
                 _timeWorked.postValue(formatDuration(totalWorked))
                 _timeLeft.postValue(formatDuration(timeLeft))
@@ -96,7 +94,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 val totalBreak = intent.getLongExtra("totalBreak", 0L)
                 val leavingTime = intent.getLongExtra("leavingTime", 0L)
 
-                totalBreakMillis = totalBreak // Update local value
+                totalBreakMillis = totalBreak
 
                 _breakTime.postValue(formatDuration(totalBreak))
                 if (leavingTime > 0L) {
@@ -105,8 +103,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-
-    // --- REMOVED stateChangeReceiver ---
 
     init {
         loadFromPrefs()
@@ -123,7 +119,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             IntentFilter(BreakTimerService.ACTION_BREAK_TIMER_UPDATE),
             AppCompatActivity.RECEIVER_NOT_EXPORTED
         )
-        // --- REMOVED stateChangeReceiver registration ---
     }
 
     private fun loadFromPrefs() {
@@ -149,25 +144,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // --- REVERTED to internal logic (NO ClockManager) ---
     fun clockIn() {
-        if (_isClockedIn.value == true) return // Prevent double-tap
+        if (_isClockedIn.value == true) return
         _isClockedIn.value = true
-
         val context = getApplication<Application>()
-
-        // This is the first clock-in of the day
         if (PrefsHelper.getClockIn(context) == 0L) {
             PrefsHelper.saveClockIn(context, System.currentTimeMillis())
-            clockInTime = PrefsHelper.getClockIn(context) // update local var
+            clockInTime = PrefsHelper.getClockIn(context)
         }
-
-        // Stop break service
         BreakTimerService.stopService(context)
-        PrefsHelper.saveBreakStart(context, 0L) // Clear break start time
-
-        // Start work timer service
-        val totalWorked = PrefsHelper.getTotalWorked(context) // Get latest total
+        PrefsHelper.saveBreakStart(context, 0L)
+        val totalWorked = PrefsHelper.getTotalWorked(context)
         startWorkTime = System.currentTimeMillis()
         PrefsHelper.saveWorkStartTime(context, startWorkTime)
         PrefsHelper.saveIsClockedIn(context, true)
@@ -175,23 +162,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         WorkTimerService.startService(context, startWorkTime, totalWorked)
     }
 
-    // --- REVERTED to internal logic (NO ClockManager) ---
     fun clockOut() {
         if (_isClockedIn.value == false) return
         _isClockedIn.value = false
-
         val context = getApplication<Application>()
-
-        // Stop work timer service
         WorkTimerService.stopService(context)
-        PrefsHelper.saveWorkStartTime(context, 0L) // Clear work start time
+        PrefsHelper.saveWorkStartTime(context, 0L)
         PrefsHelper.saveIsClockedIn(context, false)
-
-        // Start break timer service
-        val totalBreak = PrefsHelper.getTotalBreak(context) // Get latest total
+        val totalBreak = PrefsHelper.getTotalBreak(context)
         breakStartTime = System.currentTimeMillis()
         PrefsHelper.saveBreakStart(context, breakStartTime)
-
         BreakTimerService.startService(context, breakStartTime, totalBreak)
     }
 
@@ -201,11 +181,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             val clockInStr = shortTimeFormat.format(Date(clockInTime))
             val clockOutStr = shortTimeFormat.format(Date(System.currentTimeMillis()))
             val leavingStr = clockOutStr
-
             val context = getApplication<Application>()
-
-            // Load the FINAL totals from Prefs.
-            // The services have already been saving the correct values.
             val finalTotalWorked = PrefsHelper.getTotalWorked(context)
             val finalTotalBreak = PrefsHelper.getTotalBreak(context)
 
@@ -229,7 +205,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         BreakTimerService.stopService(context)
         PrefsHelper.clear(context)
 
-        // Reset all local variables and LiveData
         clockInTime = 0L
         startWorkTime = 0L
         breakStartTime = 0L
@@ -267,7 +242,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         totalShiftMillis = (hours * 3600 + minutes * 60) * 1000L
         PrefsHelper.saveShiftDuration(getApplication(), totalShiftMillis)
 
-        // Reload current state from Prefs before restarting services
         val context = getApplication<Application>()
         val currentTotalWorked = PrefsHelper.getTotalWorked(context)
         val currentWorkStart = PrefsHelper.getWorkStartTime(context)
@@ -276,7 +250,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
         if (_isClockedIn.value == true) {
             WorkTimerService.startService(getApplication(), currentWorkStart, currentTotalWorked)
-        } else if (currentBreakStart != 0L) { // Check if on break
+        } else if (currentBreakStart != 0L) {
             BreakTimerService.startService(getApplication(), currentBreakStart, currentTotalBreak)
         }
         updateUI()
@@ -292,7 +266,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
             var worked = clockOutDate.time - clockInDate.time
             if (worked < 0) {
-                worked += 24 * 3600 * 1000 // Handle overnight
+                worked += 24 * 3600 * 1000
             }
 
             totalWorkedMillis = worked
@@ -315,7 +289,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         try {
             app.unregisterReceiver(workTimerReceiver)
             app.unregisterReceiver(breakTimerReceiver)
-            // --- REMOVED stateChangeReceiver unregistration ---
         } catch (e: Exception) {
             e.printStackTrace()
         }

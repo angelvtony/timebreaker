@@ -12,7 +12,6 @@ object PrefsHelper {
     private const val KEY_BREAK_START = "break_start"
     private const val KEY_IS_CLOCKED_IN = "is_clocked_in"
     private const val KEY_SHIFT_DURATION = "shift_duration"
-    // --- NEW KEY ---
     private const val KEY_WORK_START_TIME = "work_start_time"
 
     fun getClockIn(context: Context): Long =
@@ -43,14 +42,12 @@ object PrefsHelper {
         getPrefs(context).edit().putLong(KEY_BREAK_START, value).apply()
     }
 
-    // --- NEW METHODS ---
     fun getWorkStartTime(context: Context): Long =
         getPrefs(context).getLong(KEY_WORK_START_TIME, 0L)
 
     fun saveWorkStartTime(context: Context, value: Long) {
         getPrefs(context).edit().putLong(KEY_WORK_START_TIME, value).apply()
     }
-    // -------------------
 
     fun getIsClockedIn(context: Context): Boolean =
         getPrefs(context).getBoolean(KEY_IS_CLOCKED_IN, false)

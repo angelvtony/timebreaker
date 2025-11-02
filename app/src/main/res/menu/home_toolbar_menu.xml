@@ -8,6 +8,12 @@
         app:showAsAction="always" />
 
     <item
+        android:id="@+id/action_dashboard_history"
+        android:icon="@drawable/receipt_history"
+        android:title="History"
+        app:showAsAction="always" />
+
+    <item
         android:id="@+id/action_manual_clock_entry"
         android:icon="@drawable/calendar_empty"
         android:title="Manual Clock In/Out"

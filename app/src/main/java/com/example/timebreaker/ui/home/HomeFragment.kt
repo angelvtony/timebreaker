@@ -15,6 +15,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import com.example.timebreaker.R
 import com.example.timebreaker.ui.data.WorkTimerService
+import com.example.timebreaker.ui.history.HistoryFragment
 
 class HomeFragment : Fragment() {
 
@@ -43,10 +44,16 @@ class HomeFragment : Fragment() {
                     showManualClockDialog()
                     true
                 }
+                R.id.action_dashboard_history -> {
+                    parentFragmentManager.beginTransaction()
+                        .replace(R.id.fragmentContainer, HistoryFragment())
+                        .addToBackStack(null)
+                        .commit()
+                    true
+                }
                 else -> false
             }
         }
-
 
         viewModel.currentTime.observe(viewLifecycleOwner) {
             binding.tvCurrentTime.text = it
@@ -74,11 +81,11 @@ class HomeFragment : Fragment() {
 
 
         binding.btnClockIn.setOnClickListener {
-            viewModel.clockIn() // This method already starts the WorkTimerService
+            viewModel.clockIn()
         }
 
         binding.btnClockOut.setOnClickListener {
-            viewModel.clockOut() // This method already stops WorkTimerService and starts BreakTimerService
+            viewModel.clockOut()
         }
 
         binding.btnEndDay.setOnClickListener {
