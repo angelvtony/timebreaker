@@ -10,5 +10,9 @@ class WorkRepository(private val dao: WorkSessionDao) {
     suspend fun insert(session: WorkSession) = dao.insertSession(session)
 
     suspend fun getSessionByDate(date: String) = dao.getSessionByDate(date)
+
+    suspend fun deleteSession(session: WorkSession) {
+        dao.deleteSession(session)
+    }
 }
 
