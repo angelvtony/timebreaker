@@ -7,4 +7,8 @@
     android:textStyle="bold"
     android:textSize="18sp"
     android:textColor="@color/white"
-    android:background="?android:attr/selectableItemBackground" />
+    android:drawableEnd="@drawable/ic_download_icon"
+    android:drawablePadding="8dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:background="?android:attr/selectableItemBackground"  />

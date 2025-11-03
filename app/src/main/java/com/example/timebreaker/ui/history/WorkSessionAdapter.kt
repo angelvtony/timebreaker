@@ -2,6 +2,7 @@ package com.example.timebreaker.ui.history
 
 import android.annotation.SuppressLint
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
@@ -11,9 +12,14 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.timebreaker.R
 import com.example.timebreaker.databinding.ItemWorkSessionBinding
 import com.example.timebreaker.ui.data.entities.WorkSession
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 class WorkSessionAdapter :
     ListAdapter<HistoryListItem, RecyclerView.ViewHolder>(DiffCallback()) {
+
+    var onDateIconClick: ((String) -> Unit)? = null
+
 
     companion object {
         private const val TYPE_HEADER = 0
@@ -50,8 +56,28 @@ class WorkSessionAdapter :
 
     inner class DateHeaderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val tvDate: TextView = itemView.findViewById(R.id.tvDateHeader)
-        fun bind(date: String) {
-            tvDate.text = date
+
+        @SuppressLint("ClickableViewAccessibility")
+        fun bind(dateStr: String) {
+            val inputFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val outputFormat = SimpleDateFormat("dd MMMM yyyy", Locale.getDefault())
+            val date = inputFormat.parse(dateStr)
+            tvDate.text = if (date != null) outputFormat.format(date) else dateStr
+
+            tvDate.setOnTouchListener { v, event ->
+                if (event.action == MotionEvent.ACTION_UP) {
+                    val drawableEnd = 2
+                    val drawable = tvDate.compoundDrawablesRelative[drawableEnd]
+                    if (drawable != null) {
+                        val touchAreaStart = tvDate.width - tvDate.paddingEnd - drawable.bounds.width()
+                        if (event.x >= touchAreaStart) {
+                            onDateIconClick?.invoke(dateStr)
+                            return@setOnTouchListener true
+                        }
+                    }
+                }
+                false
+            }
         }
     }
 

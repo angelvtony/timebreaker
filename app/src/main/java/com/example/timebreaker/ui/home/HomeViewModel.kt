@@ -32,7 +32,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.*
 
-
 @RequiresApi(Build.VERSION_CODES.O)
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -259,21 +258,24 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun setManualClockTimes(clockInStr: String?, clockOutStr: String?) {
         if (clockInStr == null || clockOutStr == null) return
 
-        val sdf = SimpleDateFormat("hh:mm a", Locale.getDefault())
-        try {
-            val clockInDate = sdf.parse(clockInStr) ?: return
-            val clockOutDate = sdf.parse(clockOutStr) ?: return
+        val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
+        val todayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val todayDateStr = todayFormat.format(Date())
 
-            var worked = clockOutDate.time - clockInDate.time
-            if (worked < 0) {
-                worked += 24 * 3600 * 1000
-            }
+        try {
+            val clockInTimeToday = SimpleDateFormat("yyyy-MM-dd hh:mm a", Locale.getDefault())
+                .parse("$todayDateStr $clockInStr")!!
+            val clockOutTimeToday = SimpleDateFormat("yyyy-MM-dd hh:mm a", Locale.getDefault())
+                .parse("$todayDateStr $clockOutStr")!!
+
+            var worked = clockOutTimeToday.time - clockInTimeToday.time
+            if (worked < 0) worked += 24 * 3600 * 1000
 
             totalWorkedMillis = worked
             PrefsHelper.saveTotalWorked(getApplication(), totalWorkedMillis)
             totalBreakMillis = 0L
             PrefsHelper.saveTotalBreak(getApplication(), 0L)
-            clockInTime = clockInDate.time
+            clockInTime = clockInTimeToday.time
             PrefsHelper.saveClockIn(getApplication(), clockInTime)
 
             updateUI()
@@ -281,7 +283,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             e.printStackTrace()
         }
     }
-
 
     override fun onCleared() {
         super.onCleared()
