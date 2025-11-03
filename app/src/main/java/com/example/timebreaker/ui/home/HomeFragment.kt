@@ -16,6 +16,9 @@ import androidx.fragment.app.Fragment
 import com.example.timebreaker.R
 import com.example.timebreaker.ui.data.WorkTimerService
 import com.example.timebreaker.ui.history.HistoryFragment
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class HomeFragment : Fragment() {
 
@@ -72,6 +75,19 @@ class HomeFragment : Fragment() {
         }
 
         viewModel.allSessions.observe(viewLifecycleOwner) { sessions ->
+            if (sessions.isNotEmpty()) {
+                val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                val todaySessions = sessions.filter { it.date?.startsWith(today) == true }
+                if (todaySessions.isNotEmpty()) {
+                    val firstClockIn = todaySessions.minByOrNull { it.clockInTime ?: "23:59:59" }
+                    binding.tvClockedIn.text = "Clocked in at ${formatTo12Hour(firstClockIn?.clockInTime)}"
+                } else {
+                    val lastSession = sessions.lastOrNull()
+                    binding.tvClockedIn.text = "Last clock-in: ${lastSession?.clockInTime ?: "--:--"}"
+                }
+            } else {
+                binding.tvClockedIn.text = "Not clocked in"
+            }
         }
 
         viewModel.isClockedIn.observe(viewLifecycleOwner) { isClockedIn ->
@@ -91,6 +107,17 @@ class HomeFragment : Fragment() {
         binding.btnEndDay.setOnClickListener {
             viewModel.endDay()
             WorkTimerService.stopService(requireContext())
+        }
+    }
+
+    private fun formatTo12Hour(time: String?): String {
+        if (time.isNullOrEmpty()) return "--:--"
+        return try {
+            val inputFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+            val outputFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
+            outputFormat.format(inputFormat.parse(time)!!)
+        } catch (e: Exception) {
+            time
         }
     }
 
