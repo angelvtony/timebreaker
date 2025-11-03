@@ -5,6 +5,7 @@ import android.os.Build
 import androidx.fragment.app.viewModels
 import com.example.timebreaker.databinding.FragmentHomeBinding
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -113,9 +114,13 @@ class HomeFragment : Fragment() {
     private fun formatTo12Hour(time: String?): String {
         if (time.isNullOrEmpty()) return "--:--"
         return try {
-            val inputFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+            val cleaned = time.trim().uppercase(Locale.getDefault())
+            val parsed = when {
+                cleaned.contains("AM") || cleaned.contains("PM") -> SimpleDateFormat("hh:mm a", Locale.getDefault()).parse(cleaned)
+                else -> SimpleDateFormat("HH:mm", Locale.getDefault()).parse(cleaned)
+            }
             val outputFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
-            outputFormat.format(inputFormat.parse(time)!!)
+            outputFormat.format(parsed!!)
         } catch (e: Exception) {
             time
         }
@@ -164,15 +169,13 @@ class HomeFragment : Fragment() {
             picker.addOnPositiveButtonClickListener {
                 val hour = picker.hour
                 val minute = picker.minute
-
+                val time24 = String.format("%02d:%02d", hour, minute)
                 val amPm = if (hour >= 12) "PM" else "AM"
                 val hour12 = if (hour % 12 == 0) 12 else hour % 12
-                val timeStr = String.format("%02d:%02d %s", hour12, minute, amPm)
-
-                targetView.text = timeStr
-                onTimeSelected(timeStr)
+                val displayTime = String.format("%02d:%02d %s", hour12, minute, amPm)
+                targetView.text = displayTime
+                onTimeSelected(time24)
             }
-
             picker.show(parentFragmentManager, "timePicker")
         }
 
