@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.timebreaker.R
 import com.example.timebreaker.databinding.FragmentHistoryBinding
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class HistoryFragment : Fragment() {
 
@@ -72,9 +73,10 @@ class HistoryFragment : Fragment() {
 
                 if (item is HistoryListItem.SessionItem) {
                     val session = item.session
-                    AlertDialog.Builder(requireContext())
+                    MaterialAlertDialogBuilder(requireContext(), R.style.IOSDialogStyle)
                         .setTitle("Delete Session?")
                         .setMessage("Are you sure you want to delete this work session?")
+                        .setCancelable(true)
                         .setPositiveButton("Delete") { _, _ ->
                             viewModel.deleteSession(session)
                         }

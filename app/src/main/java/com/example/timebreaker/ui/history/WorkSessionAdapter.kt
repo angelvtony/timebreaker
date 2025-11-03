@@ -1,5 +1,6 @@
 package com.example.timebreaker.ui.history
 
+import android.annotation.SuppressLint
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -56,6 +57,7 @@ class WorkSessionAdapter :
 
     inner class WorkSessionViewHolder(val binding: ItemWorkSessionBinding) :
         RecyclerView.ViewHolder(binding.root) {
+        @SuppressLint("SetTextI18n")
         fun bind(session: WorkSession) {
             binding.tvClockIn.text = "In: ${session.clockInTime ?: "--:--"}"
             binding.tvClockOut.text = "Out: ${session.clockOutTime ?: "--:--"}"
@@ -64,6 +66,7 @@ class WorkSessionAdapter :
             binding.tvLeaving.text = "Leaving: ${session.leavingTime ?: "--:--"}"
         }
 
+        @SuppressLint("DefaultLocale")
         private fun formatDuration(millis: Long): String {
             val totalSeconds = millis / 1000
             val hours = totalSeconds / 3600
@@ -73,7 +76,6 @@ class WorkSessionAdapter :
         }
     }
 
-    // --- DiffCallback ---
     class DiffCallback : DiffUtil.ItemCallback<HistoryListItem>() {
         override fun areItemsTheSame(oldItem: HistoryListItem, newItem: HistoryListItem): Boolean {
             return when {
