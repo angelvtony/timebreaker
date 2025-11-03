@@ -1,4 +1,4 @@
-package com.example.timebreaker.ui.data
+package com.example.timebreaker.ui.data.notification
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -11,10 +11,9 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.ContextCompat.getSystemService
 import com.example.timebreaker.R
 import com.example.timebreaker.ui.MainActivity
-import dagger.hilt.android.AndroidEntryPoint
+import com.example.timebreaker.ui.data.PrefsHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -84,7 +83,7 @@ class BreakTimerService : Service() {
                     putExtra("leavingTime", leavingTime)
                     setPackage(applicationContext.packageName)
                 }.also { sendBroadcast(it) }
-                val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
                 notificationManager.notify(notificationId, buildNotification(formatDuration(totalBreak)))
 
                 delay(1000)
@@ -122,7 +121,8 @@ class BreakTimerService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, "Break Timer", NotificationManager.IMPORTANCE_LOW)
+            val channel =
+                NotificationChannel(channelId, "Break Timer", NotificationManager.IMPORTANCE_LOW)
             channel.description = "Notification for active break timer"
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)

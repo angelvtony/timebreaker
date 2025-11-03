@@ -15,7 +15,7 @@ import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import com.example.timebreaker.R
-import com.example.timebreaker.ui.data.WorkTimerService
+import com.example.timebreaker.ui.data.notification.WorkTimerService
 import com.example.timebreaker.ui.history.HistoryFragment
 import java.text.SimpleDateFormat
 import java.util.Date

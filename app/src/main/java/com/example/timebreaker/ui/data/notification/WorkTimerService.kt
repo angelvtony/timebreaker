@@ -1,23 +1,25 @@
-package com.example.timebreaker.ui.data
+package com.example.timebreaker.ui.data.notification
 
-import android.annotation.SuppressLint
-import android.os.Build
-import androidx.annotation.RequiresApi
-import com.example.timebreaker.ui.MainActivity
-import android.app.*
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.example.timebreaker.R
-import kotlinx.coroutines.*
-import java.lang.Long.max
-import java.text.SimpleDateFormat
-import java.util.*
-import android.app.*
-import kotlinx.coroutines.*
-import java.util.*
+import com.example.timebreaker.ui.MainActivity
+import com.example.timebreaker.ui.data.PrefsHelper
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 class WorkTimerService : Service() {
 
@@ -77,7 +79,7 @@ class WorkTimerService : Service() {
             while (isActive) {
                 val workedNow = System.currentTimeMillis() - workStartTime
                 val totalWorked = totalWorkedAtStart + workedNow
-                val timeLeft = max(shiftDuration - totalWorked, 0L)
+                val timeLeft = java.lang.Long.max(shiftDuration - totalWorked, 0L)
                 val leavingTime = clockInTime + shiftDuration + totalBreak
                 PrefsHelper.saveTotalWorked(applicationContext, totalWorked)
                 Intent(ACTION_WORK_TIMER_UPDATE).apply {
@@ -86,7 +88,7 @@ class WorkTimerService : Service() {
                     putExtra("leavingTime", leavingTime)
                     setPackage(applicationContext.packageName)
                 }.also { sendBroadcast(it) }
-                val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
                 notificationManager.notify(notificationId, buildNotification(formatDuration(totalWorked)))
 
                 delay(1000)
@@ -124,7 +126,8 @@ class WorkTimerService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, "Work Timer", NotificationManager.IMPORTANCE_LOW)
+            val channel =
+                NotificationChannel(channelId, "Work Timer", NotificationManager.IMPORTANCE_LOW)
             channel.description = "Notification for active work timer"
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)

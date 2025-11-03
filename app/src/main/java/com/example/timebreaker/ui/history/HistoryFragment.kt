@@ -6,6 +6,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
@@ -27,6 +28,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.timebreaker.R
 import com.example.timebreaker.databinding.FragmentHistoryBinding
+import com.example.timebreaker.ui.data.entities.WorkSession
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.io.File
 import java.io.FileOutputStream
@@ -137,74 +139,104 @@ class HistoryFragment : Fragment() {
             Toast.makeText(requireContext(), "No sessions for this month", Toast.LENGTH_SHORT).show()
             return
         }
-
         val pdfDocument = PdfDocument()
-        val titlePaint = Paint().apply {
-            textSize = 16f
-            typeface = Typeface.DEFAULT_BOLD
-        }
-        val headerPaint = Paint().apply {
-            textSize = 14f
-            typeface = Typeface.DEFAULT_BOLD
-        }
-        val contentPaint = Paint().apply {
-            textSize = 12f
-        }
-
         val pageWidth = 595
         val pageHeight = 842
-        var yPosition = 50
-        var pageNumber = 1
 
+        val marginLeft = 30
+        val marginRight = 30
+        val tableTop = 80
+        val cellHeight = 25
+        val headerHeight = 30
+
+        val titlePaint = Paint().apply {
+            textSize = 16f
+            typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
+        }
+        val headerPaint = Paint().apply {
+            textSize = 13f
+            typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
+        }
+        val cellPaint = Paint().apply {
+            textSize = 12f
+            typeface = Typeface.DEFAULT
+        }
+        val linePaint = Paint().apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1f
+            color = Color.BLACK
+        }
+        val totalTableWidth = pageWidth - marginLeft - marginRight
+        val columnWidths = listOf(100, 100, 100, 100, 100)
+        val columnTitles = listOf("Clock In", "Clock Out", "Worked", "Break", "Leaving")
+
+        var yPosition = tableTop
+        var pageNumber = 1
         var pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
         var page = pdfDocument.startPage(pageInfo)
         var canvas = page.canvas
+        val monthName = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(
+            Calendar.getInstance().apply { set(Calendar.YEAR, year); set(Calendar.MONTH, month) }.time
+        )
+        canvas.drawText("Work Sessions - $monthName", marginLeft.toFloat(), 50f, titlePaint)
 
-        val leftMargin = 40
-        val columnGap = 10
-        val colClockIn = leftMargin
-        val colClockOut = colClockIn + 80 + columnGap
-        val colWorked = colClockOut + 80 + columnGap
-        val colBreak = colWorked + 80 + columnGap
-        val colLeaving = colBreak + 80 + columnGap
+        fun drawTableHeader() {
+            var xPosition = marginLeft
+            columnTitles.forEachIndexed { index, title ->
+                val cellRight = xPosition + columnWidths[index]
+                canvas.drawRect(xPosition.toFloat(), yPosition.toFloat(),
+                    cellRight.toFloat(), (yPosition + headerHeight).toFloat(), linePaint)
+                canvas.drawText(title, xPosition + 10f, yPosition + 20f, headerPaint)
+                xPosition += columnWidths[index]
+            }
+            yPosition += headerHeight
+        }
+        fun drawTableRow(session: WorkSession) {
+            var xPosition = marginLeft
+            val rowData = listOf(
+                session.clockInTime ?: "--:--",
+                session.clockOutTime ?: "--:--",
+                formatDuration(session.totalWorked),
+                formatDuration(session.totalBreak),
+                session.leavingTime ?: "--:--"
+            )
+            rowData.forEachIndexed { index, text ->
+                val cellRight = xPosition + columnWidths[index]
+                canvas.drawRect(xPosition.toFloat(), yPosition.toFloat(),
+                    cellRight.toFloat(), (yPosition + cellHeight).toFloat(), linePaint)
+                canvas.drawText(text, xPosition + 10f, yPosition + 17f, cellPaint)
+                xPosition += columnWidths[index]
+            }
 
+            yPosition += cellHeight
+        }
         historyItems.forEach { item ->
             when (item) {
                 is HistoryListItem.DateHeader -> {
+                    // Draw date header
                     val inputFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                     val outputFormat = SimpleDateFormat("dd MMMM yyyy", Locale.getDefault())
-                    val date = inputFormat.parse(item.date)
-                    val dateText = if (date != null) outputFormat.format(date) else item.date
-                    canvas.drawText(dateText, leftMargin.toFloat(), yPosition.toFloat(), titlePaint)
-                    yPosition += 25
-                    canvas.drawText("Clock In", colClockIn.toFloat(), yPosition.toFloat(), headerPaint)
-                    canvas.drawText("Clock Out", colClockOut.toFloat(), yPosition.toFloat(), headerPaint)
-                    canvas.drawText("Worked", colWorked.toFloat(), yPosition.toFloat(), headerPaint)
-                    canvas.drawText("Break", colBreak.toFloat(), yPosition.toFloat(), headerPaint)
-                    canvas.drawText("Leaving", colLeaving.toFloat(), yPosition.toFloat(), headerPaint)
-                    yPosition += 20
+                    val formattedDate = outputFormat.format(inputFormat.parse(item.date)!!)
+                    canvas.drawText(formattedDate, marginLeft.toFloat(), yPosition + 20f, titlePaint)
+                    yPosition += 35
+                    drawTableHeader()
                 }
+
                 is HistoryListItem.SessionItem -> {
-                    val session = item.session
-                    canvas.drawText(session.clockInTime ?: "--:--", colClockIn.toFloat(), yPosition.toFloat(), contentPaint)
-                    canvas.drawText(session.clockOutTime ?: "--:--", colClockOut.toFloat(), yPosition.toFloat(), contentPaint)
-                    canvas.drawText(formatDuration(session.totalWorked), colWorked.toFloat(), yPosition.toFloat(), contentPaint)
-                    canvas.drawText(formatDuration(session.totalBreak), colBreak.toFloat(), yPosition.toFloat(), contentPaint)
-                    canvas.drawText(session.leavingTime ?: "--:--", colLeaving.toFloat(), yPosition.toFloat(), contentPaint)
-                    yPosition += 20
+                    drawTableRow(item.session)
                 }
             }
 
-            if (yPosition > pageHeight - 50) {
+            if (yPosition > pageHeight - 60) {
                 pdfDocument.finishPage(page)
                 pageNumber++
                 pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
                 page = pdfDocument.startPage(pageInfo)
                 canvas = page.canvas
-                yPosition = 50
+                yPosition = tableTop
+                drawTableHeader()
             }
         }
-
         pdfDocument.finishPage(page)
         val fileName = "WorkHistory_${month + 1}_$year.pdf"
         val file = File(requireContext().getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), fileName)
@@ -212,7 +244,6 @@ class HistoryFragment : Fragment() {
         pdfDocument.close()
 
         showPdfNotification(file)
-
         Toast.makeText(requireContext(), "PDF saved: ${file.absolutePath}", Toast.LENGTH_LONG).show()
     }
 

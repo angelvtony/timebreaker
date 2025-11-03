@@ -6,10 +6,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.*
-import com.example.timebreaker.ui.data.BreakTimerService
+import com.example.timebreaker.ui.data.notification.BreakTimerService
 import com.example.timebreaker.ui.data.DatabaseProvider
 import com.example.timebreaker.ui.data.PrefsHelper
-import com.example.timebreaker.ui.data.WorkTimerService
+import com.example.timebreaker.ui.data.notification.WorkTimerService
 import com.example.timebreaker.ui.data.entities.WorkSession
 import com.example.timebreaker.ui.data.repositories.WorkRepository
 import kotlinx.coroutines.*
