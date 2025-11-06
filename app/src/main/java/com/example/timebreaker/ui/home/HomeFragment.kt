@@ -1,6 +1,8 @@
 package com.example.timebreaker.ui.home
 
 import android.annotation.SuppressLint
+import android.app.DatePickerDialog
+import android.icu.util.Calendar
 import android.os.Build
 import androidx.fragment.app.viewModels
 import com.example.timebreaker.databinding.FragmentHomeBinding
@@ -11,6 +13,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.TextView
+import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
@@ -45,7 +48,7 @@ class HomeFragment : Fragment() {
                     true
                 }
                 R.id.action_manual_clock_entry -> {
-                    showManualClockDialog()
+                    showAddManualSessionDialog()
                     true
                 }
                 R.id.action_dashboard_history -> {
@@ -146,19 +149,36 @@ class HomeFragment : Fragment() {
             .show()
     }
 
+    @RequiresApi(Build.VERSION_CODES.N)
     @SuppressLint("SetTextI18n")
-    private fun showManualClockDialog() {
+    private fun showAddManualSessionDialog() {
         val dialogView = LayoutInflater.from(requireContext())
-            .inflate(R.layout.dialog_manual_clock_entry, null)
+            .inflate(R.layout.dialog_add_manual_session, null)
 
+        val tvDate = dialogView.findViewById<TextView>(R.id.tvDate)
         val tvClockIn = dialogView.findViewById<TextView>(R.id.tvClockIn)
         val tvClockOut = dialogView.findViewById<TextView>(R.id.tvClockOut)
 
+        var selectedDate: String? = null
         var clockInTime: String? = null
         var clockOutTime: String? = null
 
-        @SuppressLint("DefaultLocale")
-        fun showTimePicker(targetView: TextView, onTimeSelected: (String) -> Unit) {
+        tvDate.setOnClickListener {
+            val cal = Calendar.getInstance()
+            DatePickerDialog(
+                requireContext(),
+                { _, year, month, dayOfMonth ->
+                    val dateStr = String.format("%04d-%02d-%02d", year, month + 1, dayOfMonth)
+                    tvDate.text = dateStr
+                    selectedDate = dateStr
+                },
+                cal.get(Calendar.YEAR),
+                cal.get(Calendar.MONTH),
+                cal.get(Calendar.DAY_OF_MONTH)
+            ).show()
+        }
+
+        fun showTimePicker(target: TextView, onSelected: (String) -> Unit) {
             val picker = com.google.android.material.timepicker.MaterialTimePicker.Builder()
                 .setTimeFormat(com.google.android.material.timepicker.TimeFormat.CLOCK_12H)
                 .setHour(9)
@@ -169,38 +189,36 @@ class HomeFragment : Fragment() {
             picker.addOnPositiveButtonClickListener {
                 val hour = picker.hour
                 val minute = picker.minute
-                val time24 = String.format("%02d:%02d", hour, minute)
                 val amPm = if (hour >= 12) "PM" else "AM"
                 val hour12 = if (hour % 12 == 0) 12 else hour % 12
-                val displayTime = String.format("%02d:%02d %s", hour12, minute, amPm)
-                targetView.text = displayTime
-                onTimeSelected(time24)
+                val formatted = String.format("%02d:%02d %s", hour12, minute, amPm)
+                target.text = formatted
+                onSelected(formatted)
             }
             picker.show(parentFragmentManager, "timePicker")
         }
 
         tvClockIn.setOnClickListener {
-            showTimePicker(tvClockIn) { selected ->
-                clockInTime = selected
-            }
+            showTimePicker(tvClockIn) { clockInTime = it }
         }
 
         tvClockOut.setOnClickListener {
-            showTimePicker(tvClockOut) { selected ->
-                clockOutTime = selected
-            }
+            showTimePicker(tvClockOut) { clockOutTime = it }
         }
 
         AlertDialog.Builder(requireContext())
-            .setTitle("Manual Clock Entry")
+            .setTitle("Add Manual Session")
             .setView(dialogView)
             .setPositiveButton("Save") { _, _ ->
-                if (clockInTime != null && clockOutTime != null) viewModel.setManualClockTimes(clockInTime, clockOutTime)
+                if (selectedDate != null && clockInTime != null && clockOutTime != null) {
+                    viewModel.addManualSession(selectedDate!!, clockInTime!!, clockOutTime!!)
+                } else {
+                    Toast.makeText(requireContext(), "Please fill all fields", Toast.LENGTH_SHORT).show()
+                }
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
-
 
     override fun onDestroyView() {
         super.onDestroyView()

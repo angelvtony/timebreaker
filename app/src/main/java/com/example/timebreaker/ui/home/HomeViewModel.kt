@@ -229,6 +229,32 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun addManualSession(date: String, clockInStr: String, clockOutStr: String) {
+        val timeFormat = SimpleDateFormat("yyyy-MM-dd hh:mm a", Locale.getDefault())
+        try {
+            val clockIn = timeFormat.parse("$date $clockInStr")!!
+            val clockOut = timeFormat.parse("$date $clockOutStr")!!
+
+            var workedMillis = clockOut.time - clockIn.time
+            if (workedMillis < 0) workedMillis += 24 * 3600 * 1000
+            viewModelScope.launch(Dispatchers.IO) {
+                val session = WorkSession(
+                    date = date,
+                    clockInTime = clockInStr,
+                    clockOutTime = clockOutStr,
+                    totalWorked = workedMillis,
+                    totalBreak = 0L,
+                    shiftDuration = 8 * 3600 * 1000L,
+                    leavingTime = clockOutStr
+                )
+                repository.insert(session)
+            }
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     private fun formatDuration(millis: Long): String {
         val totalSeconds = millis / 1000
         val hours = totalSeconds / 3600
