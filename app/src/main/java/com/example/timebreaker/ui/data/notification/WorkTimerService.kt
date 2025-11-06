@@ -25,6 +25,8 @@ class WorkTimerService : Service() {
 
     companion object {
         const val ACTION_WORK_TIMER_UPDATE = "WORK_TIMER_UPDATE"
+        const val ACTION_PAUSE_WORK = "ACTION_PAUSE_WORK"
+        const val ACTION_RESUME_WORK = "ACTION_RESUME_WORK"
 
         fun startService(context: Context, workStartTime: Long, totalWorkedAtStart: Long) {
             val intent = Intent(context, WorkTimerService::class.java).apply {
@@ -59,6 +61,17 @@ class WorkTimerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_PAUSE_WORK -> {
+                handlePauseAction()
+                return START_NOT_STICKY
+            }
+            ACTION_RESUME_WORK -> {
+                handleResumeAction()
+                return START_NOT_STICKY
+            }
+        }
+
         val workStartTime = intent?.getLongExtra("WORK_START_TIME", 0L) ?: 0L
         val totalWorkedAtStart = intent?.getLongExtra("TOTAL_WORKED_AT_START", 0L) ?: 0L
         clockInTime = PrefsHelper.getClockIn(this)
@@ -66,6 +79,31 @@ class WorkTimerService : Service() {
         shiftDuration = PrefsHelper.getShiftDuration(this)
         startTimer(workStartTime, totalWorkedAtStart)
         return START_STICKY
+    }
+
+    private fun handlePauseAction() {
+        val context = applicationContext
+        val breakStartTime = System.currentTimeMillis()
+        val totalBreak = PrefsHelper.getTotalBreak(context)
+
+        // Save break start time
+        PrefsHelper.saveBreakStart(context, breakStartTime)
+        PrefsHelper.saveIsClockedIn(context, false)
+
+        // Stop WorkTimer
+        WorkTimerService.stopService(context)
+        // Start BreakTimer
+        BreakTimerService.startService(context, breakStartTime, totalBreak)
+    }
+
+    private fun handleResumeAction() {
+        val context = applicationContext
+        val workStartTime = System.currentTimeMillis()
+        val totalWorked = PrefsHelper.getTotalWorked(context)
+        PrefsHelper.saveWorkStartTime(context, workStartTime)
+        PrefsHelper.saveIsClockedIn(context, true)
+        BreakTimerService.stopService(context)
+        WorkTimerService.startService(context, workStartTime, totalWorked)
     }
 
     private fun startTimer(workStartTime: Long, totalWorkedAtStart: Long) {
@@ -102,16 +140,26 @@ class WorkTimerService : Service() {
     }
 
     private fun buildNotification(time: String): Notification {
-        val notificationIntent = Intent(this, MainActivity::class.java) // Assumes MainActivity
+        val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, notificationIntent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
+
+        val pauseIntent = Intent(this, WorkTimerService::class.java).apply {
+            action = ACTION_PAUSE_WORK
+        }
+        val pausePendingIntent = PendingIntent.getService(
+            this, 1, pauseIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle("Clocked In")
             .setContentText("Time Worked: $time")
             .setSmallIcon(R.drawable.ic_settings)
             .setContentIntent(pendingIntent)
+            .addAction(R.drawable.ic_settings, "Pause", pausePendingIntent)
             .setOnlyAlertOnce(true)
             .build()
     }

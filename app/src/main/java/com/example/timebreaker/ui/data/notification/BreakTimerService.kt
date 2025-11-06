@@ -14,6 +14,8 @@ import androidx.core.content.ContextCompat
 import com.example.timebreaker.R
 import com.example.timebreaker.ui.MainActivity
 import com.example.timebreaker.ui.data.PrefsHelper
+import com.example.timebreaker.ui.data.notification.WorkTimerService.Companion.ACTION_PAUSE_WORK
+import com.example.timebreaker.ui.data.notification.WorkTimerService.Companion.ACTION_RESUME_WORK
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -97,16 +99,26 @@ class BreakTimerService : Service() {
     }
 
     private fun buildNotification(time: String): Notification {
-        val notificationIntent = Intent(this, MainActivity::class.java) // Assumes MainActivity
+        val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, notificationIntent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
+
+        val resumeIntent = Intent(this, WorkTimerService::class.java).apply {
+            action = WorkTimerService.ACTION_RESUME_WORK
+        }
+        val resumePendingIntent = PendingIntent.getService(
+            this, 2, resumeIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle("On Break")
             .setContentText("Break Time: $time")
             .setSmallIcon(R.drawable.ic_settings)
             .setContentIntent(pendingIntent)
+            .addAction(R.drawable.ic_settings, "Resume", resumePendingIntent)
             .setOnlyAlertOnce(true)
             .build()
     }
